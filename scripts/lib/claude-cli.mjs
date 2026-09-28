@@ -148,28 +148,31 @@ export function getClaudeAvailability(cwd) {
   }
 }
 
-// Older Claude Code accepts `--setting-sources` without applying it to every
-// file: until 2.1.211, nested `.claude/rules/*.md` files still loaded when
-// setting sources excluded project settings (Claude Code changelog, 2.1.211).
-const SETTING_SOURCES_MIN_VERSION = [2, 1, 211];
+// The latest Claude Code release that fixed `--setting-sources` letting
+// excluded settings through. Older releases accept the flag but still load
+// nested `.claude/rules/*.md` files (fixed in 2.1.211), apply the command
+// sandbox's filesystem configuration from excluded sources (2.1.246), and
+// start spawned sessions without the restriction (2.1.281), per the Claude
+// Code changelog.
+const SETTING_SOURCES_MIN_VERSION = [2, 1, 281];
 
 /**
- * Throw unless `claude --version` output names Claude Code
- * SETTING_SOURCES_MIN_VERSION or later.
+ * Throw unless `claude --version` output starts with a release version, plain
+ * `major.minor.patch`, at or above SETTING_SOURCES_MIN_VERSION.
  */
 /** @visibleForTesting */
 export function assertSettingSourcesSupported(versionOutput) {
-  const match = /^(\d+)\.(\d+)\.(\d+)\b/.exec(String(versionOutput ?? "").trim());
+  const match = /^(\d+)\.(\d+)\.(\d+)(?=\s|$)/.exec(String(versionOutput ?? "").trim());
   if (!match) {
     throw new Error(
-      `Cannot read the Claude Code version from \`claude --version\` output ${JSON.stringify(versionOutput)}.`
+      `Cannot read a Claude Code release version from \`claude --version\` output ${JSON.stringify(versionOutput)}.`
     );
   }
   const [major, minor, patch] = match.slice(1, 4).map(Number);
   const [minMajor, minMinor, minPatch] = SETTING_SOURCES_MIN_VERSION;
   if ((major - minMajor || minor - minMinor || patch - minPatch) < 0) {
     throw new Error(
-      `Claude Code ${match[0]} loads nested .claude/rules files from the code under review even with --setting-sources. ` +
+      `Claude Code ${match[0]} can load settings from the code under review even with --setting-sources. ` +
         `Update Claude Code to ${SETTING_SOURCES_MIN_VERSION.join(".")} or later to review a branch.`
     );
   }

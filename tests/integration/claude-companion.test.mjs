@@ -1114,7 +1114,7 @@ describe("claude-companion integration", () => {
     }
   });
 
-  it("refuses worktree reviews on a Claude CLI older than 2.1.211", () => {
+  it("refuses worktree reviews on a Claude CLI older than 2.1.281", () => {
     const testEnv = createTestEnvironment();
 
     try {
@@ -1123,7 +1123,7 @@ describe("claude-companion integration", () => {
       const invocationFile = path.join(testEnv.rootDir, "old-cli-invocation.json");
       const env = {
         ...testEnv.env,
-        CLAUDE_VERSION_OUTPUT: "2.1.210 (Claude Code)",
+        CLAUDE_VERSION_OUTPUT: "2.1.280 (Claude Code)",
         CLAUDE_INVOCATION_FILE: invocationFile,
       };
 
@@ -1132,7 +1132,7 @@ describe("claude-companion integration", () => {
           [command, "--cwd", testEnv.workspaceDir, "--base", "main"],
           { env }
         );
-        assert.match(result.stderr, /Claude Code 2\.1\.210 .*2\.1\.211 or later/, command);
+        assert.match(result.stderr, /Claude Code 2\.1\.280 .*2\.1\.281 or later/, command);
         assert.equal(fs.existsSync(invocationFile), false, `${command} started Claude`);
         assert.equal(
           runGit(testEnv.workspaceDir, ["worktree", "list", "--porcelain"]).split("\n").filter((line) => line.startsWith("worktree ")).length,
