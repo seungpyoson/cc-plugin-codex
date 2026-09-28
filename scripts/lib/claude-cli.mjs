@@ -466,13 +466,18 @@ export const SANDBOX_REVIEW_TOOLS = [
  *
  * read-only:       no file writes outside the OS temp dir. Network is allowed so
  *                  that `WebFetch`, `WebSearch`, and the Claude CLI's API path keep
- *                  working; the review allowlist excludes Bash entirely, so there
- *                  is no shell surface to exfiltrate or mutate state through.
+ *                  working; the review allowlist excludes Bash entirely and hooks
+ *                  are disabled, so there is no shell surface to exfiltrate or
+ *                  mutate state through.
  * workspace-write: Bash can write to cwd + OS temp dir only, no network from Bash.
  *                  All tools allowed (no allowedTools restriction).
  */
 export const SANDBOX_SETTINGS = {
   "read-only": {
+    // Reviews run in a checkout of the code under review, whose
+    // .claude/settings.json can register hooks. Hooks run outside the tool
+    // allowlist and `-p` skips workspace trust, so read-only children run none.
+    disableAllHooks: true,
     sandbox: {
       enabled: true,
       // No Bash in the review allowlist, but keep this flag conservative so that
