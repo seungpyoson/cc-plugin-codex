@@ -54,7 +54,7 @@ function sanitize(value) {
 
 async function main() {
   if (args[0] === "--version") {
-    process.stdout.write("2.1.90 (Claude Code)\\n");
+    process.stdout.write((process.env.CLAUDE_VERSION_OUTPUT || "2.1.283 (Claude Code)") + "\\n");
     return;
   }
 
@@ -1059,7 +1059,7 @@ describe("claude-companion integration", () => {
     }
   });
 
-  it("loads user settings only for reviews in a review worktree", () => {
+  it("excludes project settings only for reviews in a review worktree", () => {
     const testEnv = createTestEnvironment();
 
     try {
@@ -1072,29 +1072,78 @@ describe("claude-companion integration", () => {
       assert.equal(taskArgs.includes("--setting-sources"), false);
 
       setupGitWorkspace(testEnv.workspaceDir);
-      seedWorkingTreeDiff(testEnv.workspaceDir);
 
-      for (const [command, focusText] of [
+      const settingSourcesFor = (command, target, focusText) => {
+        const invocationFile = path.join(testEnv.rootDir, "setting-sources-invocation.json");
+        fs.rmSync(invocationFile, { force: true });
+        runCompanion(
+          [command, "--cwd", testEnv.workspaceDir, ...target, ...focusText],
+          { env: { ...testEnv.env, CLAUDE_INVOCATION_FILE: invocationFile } }
+        );
+        const { args } = JSON.parse(fs.readFileSync(invocationFile, "utf8"));
+        const index = args.indexOf("--setting-sources");
+        return index === -1 ? undefined : args[index + 1];
+      };
+      const commands = [
         ["review", []],
         ["adversarial-review", ["focus on settings"]],
-      ]) {
+      ];
+
+      // Auto scope on a clean tree reviews the branch in a worktree.
+      for (const [command, focusText] of commands) {
+        assert.equal(settingSourcesFor(command, [], focusText), "user", `${command} auto, clean tree`);
+      }
+
+      seedWorkingTreeDiff(testEnv.workspaceDir);
+      for (const [command, focusText] of commands) {
         for (const [target, expected] of [
+          [[], undefined],
           [["--scope", "working-tree"], undefined],
+          [["--scope", "branch"], "user"],
           [["--base", "main"], "user"],
         ]) {
-          const invocationFile = path.join(
-            testEnv.rootDir,
-            `setting-sources-${command}-${target[0].slice(2)}-invocation.json`
+          assert.equal(
+            settingSourcesFor(command, target, focusText),
+            expected,
+            `${command} ${target.join(" ") || "auto, dirty tree"}`
           );
-          runCompanion(
-            [command, "--cwd", testEnv.workspaceDir, ...target, ...focusText],
-            { env: { ...testEnv.env, CLAUDE_INVOCATION_FILE: invocationFile } }
-          );
-          const { args } = JSON.parse(fs.readFileSync(invocationFile, "utf8"));
-          const index = args.indexOf("--setting-sources");
-          assert.equal(index === -1 ? undefined : args[index + 1], expected, `${command} ${target.join(" ")}`);
         }
       }
+    } finally {
+      cleanupTestEnvironment(testEnv);
+    }
+  });
+
+  it("refuses worktree reviews on a Claude CLI older than 2.1.211", () => {
+    const testEnv = createTestEnvironment();
+
+    try {
+      setupGitWorkspace(testEnv.workspaceDir);
+      seedWorkingTreeDiff(testEnv.workspaceDir);
+      const invocationFile = path.join(testEnv.rootDir, "old-cli-invocation.json");
+      const env = {
+        ...testEnv.env,
+        CLAUDE_VERSION_OUTPUT: "2.1.210 (Claude Code)",
+        CLAUDE_INVOCATION_FILE: invocationFile,
+      };
+
+      for (const command of ["review", "adversarial-review"]) {
+        const result = runCompanionExpectFailure(
+          [command, "--cwd", testEnv.workspaceDir, "--base", "main"],
+          { env }
+        );
+        assert.match(result.stderr, /Claude Code 2\.1\.210 .*2\.1\.211 or later/, command);
+        assert.equal(fs.existsSync(invocationFile), false, `${command} started Claude`);
+        assert.equal(
+          runGit(testEnv.workspaceDir, ["worktree", "list", "--porcelain"]).split("\n").filter((line) => line.startsWith("worktree ")).length,
+          1,
+          `${command} left a review worktree behind`
+        );
+      }
+
+      // Working-tree reviews do not pass the flag, so the version does not matter.
+      runCompanion(["review", "--cwd", testEnv.workspaceDir, "--scope", "working-tree"], { env });
+      assert.equal(fs.existsSync(invocationFile), true);
     } finally {
       cleanupTestEnvironment(testEnv);
     }

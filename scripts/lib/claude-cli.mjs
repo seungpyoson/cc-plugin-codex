@@ -148,6 +148,33 @@ export function getClaudeAvailability(cwd) {
   }
 }
 
+// Older Claude Code accepts `--setting-sources` without applying it to every
+// file: until 2.1.211, nested `.claude/rules/*.md` files still loaded when
+// setting sources excluded project settings (Claude Code changelog, 2.1.211).
+const SETTING_SOURCES_MIN_VERSION = [2, 1, 211];
+
+/**
+ * Throw unless `claude --version` output names Claude Code
+ * SETTING_SOURCES_MIN_VERSION or later.
+ */
+/** @visibleForTesting */
+export function assertSettingSourcesSupported(versionOutput) {
+  const match = /^(\d+)\.(\d+)\.(\d+)\b/.exec(String(versionOutput ?? "").trim());
+  if (!match) {
+    throw new Error(
+      `Cannot read the Claude Code version from \`claude --version\` output ${JSON.stringify(versionOutput)}.`
+    );
+  }
+  const [major, minor, patch] = match.slice(1, 4).map(Number);
+  const [minMajor, minMinor, minPatch] = SETTING_SOURCES_MIN_VERSION;
+  if ((major - minMajor || minor - minMinor || patch - minPatch) < 0) {
+    throw new Error(
+      `Claude Code ${match[0]} loads nested .claude/rules files from the code under review even with --setting-sources. ` +
+        `Update Claude Code to ${SETTING_SOURCES_MIN_VERSION.join(".")} or later to review a branch.`
+    );
+  }
+}
+
 export function getClaudeAuthStatus(cwd) {
   if (process.env.ANTHROPIC_API_KEY) {
     return { available: true, loggedIn: true, detail: "API key configured" };
@@ -764,6 +791,13 @@ export function buildArgs(prompt, options = {}) {
  * Returns { status, sessionId, finalMessage, toolUses, touchedFiles, stderr, pid, pidIdentity }
  */
 export async function runClaudeTurn(cwd, prompt, options = {}) {
+  if (options.settingSources) {
+    const claude = getClaudeAvailability(cwd);
+    if (!claude.available) {
+      throw new Error(claude.detail);
+    }
+    assertSettingSourcesSupported(claude.detail);
+  }
   const args = buildArgs(prompt, {
     outputFormat: "stream-json",
     ...options,
