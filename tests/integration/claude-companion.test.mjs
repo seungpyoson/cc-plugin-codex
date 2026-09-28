@@ -1059,6 +1059,38 @@ describe("claude-companion integration", () => {
     }
   });
 
+  it("loads user settings only in review children and keeps project settings for tasks", () => {
+    const testEnv = createTestEnvironment();
+
+    try {
+      const taskArgsFile = path.join(testEnv.rootDir, "setting-sources-task-args.json");
+      runCompanion(
+        ["task", "--cwd", testEnv.workspaceDir, "--quiet-progress", "setting sources task delay=20"],
+        { env: { ...testEnv.env, CLAUDE_ARGS_FILE: taskArgsFile } }
+      );
+      const taskArgs = JSON.parse(fs.readFileSync(taskArgsFile, "utf8"));
+      assert.equal(taskArgs.includes("--setting-sources"), false);
+
+      setupGitWorkspace(testEnv.workspaceDir);
+      seedWorkingTreeDiff(testEnv.workspaceDir);
+
+      for (const [command, focusText] of [
+        ["review", []],
+        ["adversarial-review", ["focus on settings"]],
+      ]) {
+        const invocationFile = path.join(testEnv.rootDir, `setting-sources-${command}-invocation.json`);
+        runCompanion(
+          [command, "--cwd", testEnv.workspaceDir, "--scope", "working-tree", ...focusText],
+          { env: { ...testEnv.env, CLAUDE_INVOCATION_FILE: invocationFile } }
+        );
+        const { args } = JSON.parse(fs.readFileSync(invocationFile, "utf8"));
+        assert.equal(args[args.indexOf("--setting-sources") + 1], "user", command);
+      }
+    } finally {
+      cleanupTestEnvironment(testEnv);
+    }
+  });
+
   it("uses --resume to continue the latest session and keeps --fresh from injecting a resume id", async () => {
     const testEnv = createTestEnvironment();
     const sessionEnv = {

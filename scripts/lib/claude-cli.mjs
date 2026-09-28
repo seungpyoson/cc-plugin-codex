@@ -466,18 +466,13 @@ export const SANDBOX_REVIEW_TOOLS = [
  *
  * read-only:       no file writes outside the OS temp dir. Network is allowed so
  *                  that `WebFetch`, `WebSearch`, and the Claude CLI's API path keep
- *                  working; the review allowlist excludes Bash entirely and hooks
- *                  are disabled, so there is no shell surface to exfiltrate or
- *                  mutate state through.
+ *                  working; the review allowlist excludes Bash entirely, so there
+ *                  is no shell surface to exfiltrate or mutate state through.
  * workspace-write: Bash can write to cwd + OS temp dir only, no network from Bash.
  *                  All tools allowed (no allowedTools restriction).
  */
 export const SANDBOX_SETTINGS = {
   "read-only": {
-    // Reviews run in a checkout of the code under review, whose
-    // .claude/settings.json can register hooks. Hooks run outside the tool
-    // allowlist and `-p` skips workspace trust, so read-only children run none.
-    disableAllHooks: true,
     sandbox: {
       enabled: true,
       // No Bash in the review allowlist, but keep this flag conservative so that
@@ -751,6 +746,9 @@ export function buildArgs(prompt, options = {}) {
   if (options.settingsFile) {
     args.push("--settings", options.settingsFile);
   }
+  if (options.settingSources) {
+    args.push("--setting-sources", options.settingSources);
+  }
   if (options.mcpConfigFile) {
     args.push("--mcp-config", options.mcpConfigFile);
   }
@@ -887,6 +885,12 @@ export async function runClaudeTurn(cwd, prompt, options = {}) {
  * MCP tool surface). Callers that want to run with an alternative allowlist —
  * e.g., legacy `SANDBOX_READ_ONLY_TOOLS` for back-compat — can override via
  * `options.allowedTools`. Bash is intentionally excluded by default.
+ *
+ * Reviews load user settings only. The code under review can carry
+ * `.claude/settings.json` and `CLAUDE.md`, and a print-mode child never asks
+ * whether to trust them: project hooks would run, project `env` would reach
+ * the processes the child starts, and project instructions would reach the
+ * model. `--settings` and managed settings still apply.
  */
 export async function runClaudeReview(cwd, prompt, options = {}) {
   // Use streaming mode (same as runClaudeTurn) for progress reporting
@@ -894,6 +898,7 @@ export async function runClaudeReview(cwd, prompt, options = {}) {
     noSessionPersistence: true,
     allowedTools: SANDBOX_REVIEW_TOOLS,
     ...options,
+    settingSources: "user",
   });
 
   return {

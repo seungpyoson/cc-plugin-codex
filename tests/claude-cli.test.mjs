@@ -798,6 +798,12 @@ describe("buildArgs", () => {
     assert.ok(idx >= 0);
     assert.equal(args[idx + 1], "/tmp/s.json");
   });
+
+  it("includes --setting-sources only when settingSources is provided", () => {
+    const args = buildArgs("p", { settingSources: "user" });
+    assert.equal(args[args.indexOf("--setting-sources") + 1], "user");
+    assert.equal(buildArgs("p", {}).includes("--setting-sources"), false);
+  });
 });
 
 // ===========================================================================

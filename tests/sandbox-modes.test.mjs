@@ -216,13 +216,8 @@ describe("sandbox settings content", () => {
     assert.deepEqual(s.sandbox.filesystem.allowWrite, [SANDBOX_TEMP_DIR]);
     // network block intentionally omitted: review/adversarial-review need network
     // for WebFetch/WebSearch and the Claude CLI's own API access. Mutation
-    // surfaces are closed off by removing Bash from the allowlist and disabling
-    // hooks instead.
+    // surfaces are closed off by removing Bash from the allowlist instead.
     assert.equal(s.sandbox.network, undefined);
-  });
-
-  it("read-only: disables hooks, including those the checkout under review registers", () => {
-    assert.equal(SANDBOX_SETTINGS["read-only"].disableAllHooks, true);
   });
 
   it("workspace-write: sandbox enabled, allowWrite cwd+temp dir, no network", () => {
