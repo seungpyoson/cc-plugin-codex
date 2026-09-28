@@ -1059,7 +1059,7 @@ describe("claude-companion integration", () => {
     }
   });
 
-  it("loads user settings only in review children and keeps project settings for tasks", () => {
+  it("loads user settings only for reviews in a review worktree", () => {
     const testEnv = createTestEnvironment();
 
     try {
@@ -1078,13 +1078,22 @@ describe("claude-companion integration", () => {
         ["review", []],
         ["adversarial-review", ["focus on settings"]],
       ]) {
-        const invocationFile = path.join(testEnv.rootDir, `setting-sources-${command}-invocation.json`);
-        runCompanion(
-          [command, "--cwd", testEnv.workspaceDir, "--scope", "working-tree", ...focusText],
-          { env: { ...testEnv.env, CLAUDE_INVOCATION_FILE: invocationFile } }
-        );
-        const { args } = JSON.parse(fs.readFileSync(invocationFile, "utf8"));
-        assert.equal(args[args.indexOf("--setting-sources") + 1], "user", command);
+        for (const [target, expected] of [
+          [["--scope", "working-tree"], undefined],
+          [["--base", "main"], "user"],
+        ]) {
+          const invocationFile = path.join(
+            testEnv.rootDir,
+            `setting-sources-${command}-${target[0].slice(2)}-invocation.json`
+          );
+          runCompanion(
+            [command, "--cwd", testEnv.workspaceDir, ...target, ...focusText],
+            { env: { ...testEnv.env, CLAUDE_INVOCATION_FILE: invocationFile } }
+          );
+          const { args } = JSON.parse(fs.readFileSync(invocationFile, "utf8"));
+          const index = args.indexOf("--setting-sources");
+          assert.equal(index === -1 ? undefined : args[index + 1], expected, `${command} ${target.join(" ")}`);
+        }
       }
     } finally {
       cleanupTestEnvironment(testEnv);

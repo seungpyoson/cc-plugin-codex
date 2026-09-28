@@ -137,9 +137,15 @@ function cleanupWorktreeDir(worktreePath) {
  * would mislead Claude into thinking the repo is unchanged. Instead we run in
  * the original repo and rely on the Bash-free allowlist for containment.
  *
- * Returns `{ cwd, gitRoot, cleanup }`. `gitRoot` is the path the MCP git server
- * should be rooted at; `cwd` is what the Claude CLI should treat as the
- * working directory.
+ * Returns `{ cwd, gitRoot, cleanup, isolated, settingSources }`. `gitRoot` is
+ * the path the MCP git server should be rooted at; `cwd` is what the Claude
+ * CLI should treat as the working directory. `settingSources` is the Claude
+ * `--setting-sources` value for that directory. A review worktree is a
+ * checkout of the commit under review that the user never trusted, and a
+ * print-mode child never asks: its `.claude/settings.json` hooks and `env`
+ * and its `CLAUDE.md` would load. So a worktree run loads user settings only.
+ * A working-tree review runs in the user's own repository and loads its
+ * settings as any Claude session there does.
  */
 export function createReviewIsolation(repoRoot, target, { label = "review" } = {}) {
   if (target?.mode === "working-tree") {
@@ -156,6 +162,7 @@ export function createReviewIsolation(repoRoot, target, { label = "review" } = {
     gitRoot: worktree.path,
     cleanup: () => worktree.cleanup(),
     isolated: true,
+    settingSources: "user",
   };
 }
 

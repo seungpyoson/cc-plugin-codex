@@ -382,7 +382,8 @@ describe("hooks", () => {
       assert.ok(permissionModeIndex >= 0);
       assert.equal(claudeArgs[permissionModeIndex + 1], "dontAsk");
       assert.ok(claudeArgs.includes("--settings"));
-      assert.equal(claudeArgs[claudeArgs.indexOf("--setting-sources") + 1], "user");
+      // The gate runs in the user's own repository and loads its settings.
+      assert.equal(claudeArgs.includes("--setting-sources"), false);
       assert.ok(claudeArgs.includes("--mcp-config"));
       assert.ok(claudeArgs.includes("--strict-mcp-config"));
 
